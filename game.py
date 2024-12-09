@@ -2,8 +2,8 @@ import pygame
 import sys
 import random
 from collections import deque
-from agent impor Agent
-
+from agent import Agent
+import numpy as np
 FRAME_RATE = 120
 WIDTH, HEIGHT = 576, 1024
 
@@ -45,6 +45,14 @@ def check_collisions(pip_list, bird_rect, score):
             print(f"Score: {score}")    
             reward = -1
             return reward, False, score
+    to_remove = list()
+    for i in range(len(pip_list)):
+        pipe = pip_list[i]
+        if pipe.centerx <100:
+            score += 0.5
+            to_remove.append(pipe)
+    for pipe in to_remove:
+        pip_list.remove(pipe)
     return score//1, True, score
 
 def reset_game():
@@ -52,9 +60,28 @@ def reset_game():
 
 
 
-def feed_agent(bottom_pipe_y, top_pipe_y, pipe_x, bird_y, bird_x, reward):
+def feed_agent(agent, pipe_list, bird_rect, reward):
     # Feed and train agent 
-    pass
+    # 5 neurons at the begining:
+    #   bottom_pipe_y
+    #   top_pipe_y
+    #   pipe_x - 100
+    #   bird_y
+    # return next move
+    try:
+        bottom_pipe_y = pipe_list[0].topleft[1]
+        top_pipe_y = pipe_list[1].bottom_left[1]
+        pipe_x = pipe_list[0].topleft[0] - 100
+    except:
+        bottom_pipey = 0 
+        top_pipe_y = 0
+        pipe_x = 0
+    bird_rect = bird_rect.centery
+    
+
+
+    return 0 
+
 
 def main():
     agent = Agent()
@@ -65,6 +92,7 @@ def main():
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     
     score = 0 
+    reward = 0
 
     clock = pygame.time.Clock()
     
@@ -106,15 +134,13 @@ def main():
         screen.blit(floor_surface,(floor_x_pos,900))
         screen.blit(floor_surface_2,(floor_x_pos+WIDTH,900))
         
-        play_step()
-        reward = score
         # Events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
+                if event.key == pygame.K_SPACE and game_active:
                     bird_movement = 0
                     bird_movement -= 9
                 if event.key == pygame.K_SPACE and not game_active:
@@ -123,32 +149,39 @@ def main():
             if event.type == SPAWNPIPE:
                 pip_list.extend(create_pipe(pipe_surface, pipe_height))
 
-
-
-
-
         if game_active:
             
-            
+            # Agent move
+            agent_move = feed_agent(agent,pip_list, bird_rect, reward)
+            # Action move
+            if np.array_equal(agent_move, [1,0]):
+                # JUMP
+                bird_movement = 0
+                bird_movement -= 9
+
+            elif np.array_equal(agent_move, [0,1]):
+                # NOT JUMP
+                pass
 
             # Insert bird
             screen.blit(bird_surface, bird_rect)
             
-            
-            # Collisions
-            game_active = check_collisions(pip_list, bird_rect, score)[1]
-                
-            # Pipe movement
-            pip_list = move_pipes(pip_list)
+            # Insert pipes
             draw_pipes(pip_list, pipe_surface, screen)
-            
-            # Update variables
+                   
+            # Pipes movement
+            pip_list = move_pipes(pip_list)
+
+            # Floor movement
             floor_x_pos = get_floor_x(floor_x_pos)
             
             # Bird movement
             bird_movement += gravity
             bird_rect.centery += bird_movement
-            score += 0.05    
+            
+            # Collisions
+            reward,game_active,score = check_collisions(pip_list, bird_rect, score)
+        
         clock.tick(FRAME_RATE)
 
         # Update window
