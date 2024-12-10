@@ -2,7 +2,6 @@ import pygame
 import sys
 import random
 from collections import deque
-from agent import Agent
 import numpy as np
 FRAME_RATE = 120
 WIDTH, HEIGHT = 576, 1024
@@ -188,5 +187,136 @@ def main():
         pygame.display.update()
 
     pygame.quit()
+
+
+
+
+class FlappyBirdAI:
+
+    def __init__(self):
+        pygame.init()
+
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.score = 0 
+        self.reward = 0
+        self.clock = pygame.time.Clock()    
+        self.game_active = True
+        # GRAVITY
+        self.gravity = 0.20
+        self.bird_movement = 0
+        
+        # import background 
+        self.bg_surface = pygame.image.load('assets/sprites/background-day.png').convert()
+        self.bg_surface = pygame.transform.scale2x(self.bg_surface)
+        
+        # import floor
+        self.floor_surface = pygame.image.load('assets/sprites/base.png').convert()
+        self.floor_surface = pygame.transform.scale2x(self.floor_surface)
+        self.floor_x_pos = 0
+        self.floor_surface_2 = pygame.image.load('assets/sprites/base.png').convert()
+        self.floor_surface_2 = pygame.transform.scale2x(self.floor_surface_2)
+
+        # import bird
+        self.bird_surface = pygame.image.load('assets/sprites/yellowbird-midflap.png').convert()
+        self.bird_surface = pygame.transform.scale2x(self.bird_surface)
+        self.bird_rect = self.bird_surface.get_rect(center = (100,512))
+
+        # import pipes
+        self.pipe_surface = pygame.image.load('assets/sprites/pipe-green.png').convert()
+        self.pipe_surface = pygame.transform.scale2x(self.pipe_surface)
+        
+        self.pip_list = deque(maxlen=4)
+        self.SPAWNPIPE = pygame.USEREVENT
+        pygame.time.set_timer(self.SPAWNPIPE,1200)
+        self.pipe_height = [400,600,800]
+
+    def reset(self):
+        self.pip_list, self.bird_rect.center, self.bird_movement, self.score = reset_game()
+    
+    def play_loop(self):
+
+        while True:
+            
+            
+            # Events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE and self.game_active:
+                        self.bird_movement = 0
+                        self.bird_movement -= 9
+                    if event.key == pygame.K_SPACE and not self.game_active:
+                        self.game_active = True
+                        self.pip_list, self.bird_rect.center, self.bird_movement, self.score = reset_game()
+                if event.type == self.SPAWNPIPE:
+                    self.pip_list.extend(create_pipe(self.pipe_surface, self.pipe_height))
+            
+            if self.game_active:
+                self.play_step()
+            
+    def get_game_state(self):
+        # Return bottom
+        try:
+            bp_y = self.pip_list[0].topleft[1] / 900
+            tp_y = self.pip_list[1].bottom_left[1] / 900
+            p_x = (self.pip_list[0].topleft[0] - 100) / 700
+        except:
+            bp_y = 0 
+            tp_y = 0
+            p_x = 0
+        bird_y = self.bird_rect.centery / 900
+        bird_m = self.bird_movement
+
+        return bp_y, tp_y, p_x, bird_y, bird_m
+    
+
+    def play_step(self, ai = False, agent_move = None):
+        
+        self.screen.blit(self.bg_surface,(0,0))
+        self.screen.blit(self.floor_surface,(self.floor_x_pos,900))
+        self.screen.blit(self.floor_surface_2,(self.floor_x_pos+WIDTH,900))
+        # Action move
+        if ai and np.array_equal(agent_move, [1,0]):
+            # JUMP
+            print('JUMP!')
+            self.bird_movement = 0
+            self.bird_movement -= 9
+
+        elif ai and np.array_equal(agent_move, [0,1]):
+        #    NOT JUMP
+            pass
+
+        # Insert bird
+        self.screen.blit(self.bird_surface, self.bird_rect)
+        
+        # Insert pipes
+        draw_pipes(self.pip_list, self.pipe_surface, self.screen)
+                
+        # Pipes movement
+        self.pip_list = move_pipes(self.pip_list)
+
+        # Floor movement
+        self.floor_x_pos = get_floor_x(self.floor_x_pos)
+        
+        # Bird movement
+        self.bird_movement += self.gravity
+        self.bird_rect.centery += self.bird_movement
+        
+        # Collisions
+        self.reward,self.game_active,self.score = check_collisions(self.pip_list, self.bird_rect, self.score)
+
+        self.clock.tick(FRAME_RATE)
+
+            # Update window
+        pygame.display.update()
+
+        return (self.reward, self.game_active, self.score)
+
 if __name__ == '__main__':
-    main()
+    game = FlappyBirdAI()
+    game.play_loop()
+
+
+
