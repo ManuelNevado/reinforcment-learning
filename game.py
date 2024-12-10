@@ -3,7 +3,7 @@ import sys
 import random
 from collections import deque
 import numpy as np
-FRAME_RATE = 120
+FRAME_RATE = 100
 WIDTH, HEIGHT = 576, 1024
 
 
@@ -33,26 +33,32 @@ def move_pipes(pipes):
     return pipes
 
 def check_collisions(pip_list, bird_rect, score):
+    reward = 0
     # bird collition
     if bird_rect.top <= 0 or bird_rect.bottom >= 900:
         print(f"Score: {score}")
-        reward = -1
+        reward = -10
         return reward, False, score
     # pipe collition
     for pipe in pip_list:
         if bird_rect.colliderect(pipe):
             print(f"Score: {score}")    
-            reward = -1
+            reward = -10
             return reward, False, score
     to_remove = list()
     for i in range(len(pip_list)):
         pipe = pip_list[i]
         if pipe.centerx <100:
             score += 0.5
+            reward +=5
             to_remove.append(pipe)
     for pipe in to_remove:
         pip_list.remove(pipe)
-    return score//1, True, score
+    if bird_rect.centery in range(450 - 150, 450 + 150):
+        reward +=10
+    
+    #print(f"Reward: {reward}")
+    return reward, True, score
 
 def reset_game():
     return deque(maxlen=4), (100,512), 0, 0
@@ -83,7 +89,7 @@ def feed_agent(agent, pipe_list, bird_rect, reward):
 
 
 def main():
-    agent = Agent()
+    agent =None
     # Initialize lib
     pygame.init()
  
@@ -225,10 +231,10 @@ class FlappyBirdAI:
         self.pipe_surface = pygame.image.load('assets/sprites/pipe-green.png').convert()
         self.pipe_surface = pygame.transform.scale2x(self.pipe_surface)
         
-        self.pip_list = deque(maxlen=4)
+        self.pip_list = deque(maxlen=6)
         self.SPAWNPIPE = pygame.USEREVENT
-        pygame.time.set_timer(self.SPAWNPIPE,1200)
-        self.pipe_height = [400,600,800]
+        pygame.time.set_timer(self.SPAWNPIPE,1000)
+        self.pipe_height = [500,600,700]
 
     def reset(self):
         self.pip_list, self.bird_rect.center, self.bird_movement, self.score = reset_game()
@@ -261,30 +267,36 @@ class FlappyBirdAI:
         try:
             bp_y = self.pip_list[0].topleft[1] / 900
             tp_y = self.pip_list[1].bottom_left[1] / 900
-            p_x = (self.pip_list[0].topleft[0] - 100) / 700
+            #p_x = (self.pip_list[0].topleft[0] - 100) / 700
+            #bp_y = self.pip_list[0].topleft[1] 
+            #tp_y = self.pip_list[1].bottom_left[1] 
+            #p_x = (self.pip_list[0].topleft[0] - 100) 
         except:
             bp_y = 0 
             tp_y = 0
-            p_x = 0
+            #p_x = 0
         bird_y = self.bird_rect.centery / 900
-        bird_m = self.bird_movement
+        #bird_m = self.bird_movement
 
-        return bp_y, tp_y, p_x, bird_y, bird_m
+        return bp_y, tp_y, bird_y
     
 
     def play_step(self, ai = False, agent_move = None):
-        
+        #for event in pygame.event.get():
+        #    if event.type == self.SPAWNPIPE:
+        #            self.pip_list.extend(create_pipe(self.pipe_surface, self.pipe_height))
+            
         self.screen.blit(self.bg_surface,(0,0))
         self.screen.blit(self.floor_surface,(self.floor_x_pos,900))
         self.screen.blit(self.floor_surface_2,(self.floor_x_pos+WIDTH,900))
         # Action move
-        if ai and np.array_equal(agent_move, [1,0]):
+        if ai and np.array_equal(agent_move, [1]):
             # JUMP
-            print('JUMP!')
+            
             self.bird_movement = 0
             self.bird_movement -= 9
 
-        elif ai and np.array_equal(agent_move, [0,1]):
+        elif ai and np.array_equal(agent_move, [0]):
         #    NOT JUMP
             pass
 

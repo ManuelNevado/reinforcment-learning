@@ -8,8 +8,8 @@ import os
 import matplotlib.pyplot as plt
 from IPython import display
 
-MAX_MEM = 100000
-BATCH_SIZE = 1000 
+MAX_MEM = 100_000
+BATCH_SIZE = 1000
 LR = 1e-3
 
 plt.ion()
@@ -17,15 +17,26 @@ plt.ion()
 #-------------------MODEL----------------------------------
 class Linear_QNet(nn.Module):
 
-    def __init__(self, input_size, hidden_size, output_size):
+    def __init__(self, input_size, hidden_size, output_size, deep=False):
         super().__init__()
+        self.deep = deep
+
         self.init = nn.Linear(input_size, hidden_size)
-        self.hidden = nn.Linear(hidden_size, output_size)
+        if not deep:
+            self.hidden = nn.Linear(hidden_size, output_size)
+        if deep:
+            self.hidden = nn.Linear(hidden_size,hidden_size)
+            self.second_hidden = nn.Linear(hidden_size, output_size)
     
     def forward(self,x):
         x = F.relu(self.init(x))
         x = self.hidden(x)
+        if self.deep:
+            x = F.relu(x)
+            x = self.second_hidden(x)
+
         return F.tanh(x)
+        #return F.sigmoid(x)
     
     def save(self, file_name = 'flappy_bird.pth'):
         model_folder_path = './model'
@@ -33,6 +44,20 @@ class Linear_QNet(nn.Module):
             os.makedirs(model_folder_path)
         file_name = os.path.join(model_folder_path, file_name)
         torch.save(self.state_dict(), file_name)
+
+
+#------------------MODEL 2 -----------------------------------
+class TripleOjo(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ojos = nn.Linear(3,5)
+        self.cerebro = nn.Linear(5,1)
+    
+    def forward(self, x):
+        x = self.ojos(x)
+        x = self.cerebro(F.relu(x))
+        return F.relu(x)
 
 #--------------------TRAINNING--------------------------------
 class QTrainer:
@@ -88,7 +113,7 @@ class Agent:
         self.epsilon = 0 # randomness
         self.gamma = 0.9 # discount rate
         self.memory = deque(maxlen = MAX_MEM)
-        self.model = Linear_QNet(5,32,2) 
+        self.model = TripleOjo()
         self.trainer = QTrainer(self.model,lr=LR, gamma=self.gamma)
         
 
@@ -116,15 +141,14 @@ class Agent:
     def get_action(self, state):
         # random_moves: tradeoff exploration / explotation
         self.epsilon = 80 - self.n_games
-        final_move = [0,0]
+        final_move = [0]
         if random.randint(0,200) < self.epsilon:
             move = random.randint(0,1)
-            final_move[move] = 1
+            final_move[0] = move
         else:
             state0 = torch.tensor(state,dtype=torch.float)
-            prediction =  self.model(state0)
-            move = torch.argmax(prediction).item()
-            final_move[move] = 1
+            prediction =  self.model(state0).item()
+            move = [0] if prediction==0.0 else [1]
        
         return final_move
 
@@ -178,7 +202,7 @@ def train():
             
             if score > record:
                 record = score
-                # agent.model.save()
+                agent.model.save()
             print(f'Game: {agent.n_games}, Score: {score}, Record: {record}')
 
             plot_scores.append(score)
